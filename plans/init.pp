@@ -28,6 +28,7 @@ plan deploy_vm(
     run_task('terraform::initialize', $targets, dir => $tf_dir)
 
     run_plan('terraform::apply',
+      targets       => $targets,
       dir           => $tf_dir,
       return_output => true,
       var_file      => "${tf_dir}/vm.tfvars",
