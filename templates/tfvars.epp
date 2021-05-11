@@ -7,3 +7,6 @@ region         = "<%= $cloud_region %>"
 <% unless $instance_image == undef { -%>
 instance_image = "<%= $instance_image %>"
 <% } -%>
+<% unless $network == undef { -%>
+network = "<%= $network %>"
+<% } -%>

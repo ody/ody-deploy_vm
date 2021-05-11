@@ -2,6 +2,7 @@ plan deploy_vm(
   TargetSpec                          $targets            = 'localhost',
   Optional[String[1]]                 $ssh_pub_key_file   = undef,
   Optional[String[1]]                 $instance_image     = undef,
+  Optional[String[1]]                 $network            = undef,
   String[1]                           $cloud_region       = 'us-west1',
   String[1]                           $project,
   String[1]                           $ssh_user,
@@ -13,27 +14,35 @@ plan deploy_vm(
     'ssh_pub_key_file' => $ssh_pub_key_file,
     'cloud_region'     => $cloud_region,
     'instance_image'   => $instance_image,
+    'network'          => $network,
   })
 
-  $tf_manifest = epp('deploy_vm/vm.tf.epp')
+  $tffile = epp('deploy_vm/tffile.epp')
 
-  $apply = deploy_vm::with_tempdir('deploy_vm-') |$tf_dir| {
+  $tf_dir = deploy_vm::tempfile('deploy_vm-', '/tmp')
 
-    file::write("${tf_dir}/vm.tfvars", $tfvars)
-
-    file::write("${tf_dir}/vm.tf", $tf_manifest)
-
-    # Ensure the Terraform project directory has been initialized ahead of
-    # attempting an apply
-    run_task('terraform::initialize', $targets, dir => $tf_dir)
-
-    run_plan('terraform::apply',
-      targets       => $targets,
-      dir           => $tf_dir,
-      return_output => true,
-      var_file      => "${tf_dir}/vm.tfvars",
-    )
+  apply($targets) {
+    file { $tf_dir: ensure => directory, mode => '0700' }
+    file { "${tf_dir}/vm.tfvars": content => $tfvars }
+    file { "${tf_dir}/vm.tf": content => $tffile }
   }
 
-  out::message($apply)
+  #upload_file('deploy_vm/vm.tf', "${tf_dir}/vm.tf", $targets )
+
+  # Ensure the Terraform project directory has been initialized ahead of
+  # attempting an apply
+  run_task('terraform::initialize', $targets, { dir => $tf_dir })
+
+  run_task('terraform::apply',$targets, {
+    dir      => $tf_dir,
+    var_file => "${tf_dir}/vm.tfvars",
+  })
+
+  $output = run_task('terraform::output', $targets, { dir => $tf_dir} )
+
+  apply($targets) {
+    file { $tf_dir: ensure => absent, force => true }
+  }
+
+  out::message($output)
 }
