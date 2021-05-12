@@ -1,0 +1,15 @@
+project        = "<%= $project %>"
+user           = "<%= $ssh_user %>"
+<% unless $ssh_key_file == undef { -%>
+ssh_key        = "<%= $ssh_key_file %>"
+<% } -%>
+region         = "<%= $cloud_region %>"
+<% unless $vm_image == undef { -%>
+instance_image = "<%= $vm_image %>"
+<% } -%>
+<% unless $vm_name == undef { -%>
+instance_name = "<%= $vm_name %>"
+<% } -%>
+<% unless $network == undef { -%>
+network = "<%= $network %>"
+<% } -%>
