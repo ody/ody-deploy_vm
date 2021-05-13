@@ -1,5 +1,5 @@
 project        = "<%= $project %>"
-user           = "<%= $ssh_user %>"
+user           = "<%= $user %>"
 <% unless $ssh_key_file == undef { -%>
 ssh_key        = "<%= $ssh_key_file %>"
 <% } -%>
@@ -11,5 +11,5 @@ instance_image = "<%= $vm_image %>"
 instance_name = "<%= $vm_name %>"
 <% } -%>
 <% unless $network == undef { -%>
-network = "<%= $network %>"
+network       = "<%= $network %>"
 <% } -%>

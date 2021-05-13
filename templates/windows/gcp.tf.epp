@@ -1,0 +1,132 @@
+# Terraform setup stuff, required providers, where they are sourced from, and
+# the provider's configuration requirements.
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "3.58.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "3.1.0"
+    }
+  }
+}
+
+variable "project" {
+  description = "Name of GCP project that will be used for housing require infrastructure"
+  type        = string
+}
+variable "user" { 
+  description = "Instance user name that will used for SSH operations"
+  type        = string
+}
+variable "region" {
+  description = "GCP region that'll be targeted for infrastructure deployment"
+  type        = string
+  default     = "us-west1"
+}
+variable "instance_image" {
+  description = "The disk image to use when deploying new cloud instances"
+  type        = string
+  default     = "centos-cloud/centos-8"
+}
+variable "instance_name" {
+  description = "The base name of the new cloud instances"
+  type        = string
+  default     = "vm"
+}
+variable "network" {
+  description = "The disk image to use when deploying new cloud instances"
+  type        = string
+  default     = "default"
+}
+variable "winrm_pw" {
+  description = "The disk image to use when deploying new cloud instances"
+  type        = string
+  default     = "none"
+}
+
+# GCP region and project to operating within
+provider "google" {
+  project = var.project
+  region  = var.region
+}
+
+# Retrieve list of zones to deploy to prevent needing to know what they are for
+# each region.
+data "google_compute_zones" "available" {
+  status = "UP"
+}
+
+# It is intended that multiple deployments can be launched easily without
+# name collisions
+resource "random_id" "deployment" {
+  byte_length = 3
+}
+
+resource "random_integer" "zone" {
+  min = 0
+  max = 2
+}
+
+# Collect some repeated values used by each major component module into one to
+# make them easier to update
+locals {
+  zone           = element(data.google_compute_zones.available.names, random_integer.zone.result)
+  id             = random_id.deployment.hex
+  network        = var.network
+  subnetwork     = var.network
+}
+
+# PE server instance(s) depending on if a replica is provisioned or not
+resource "google_compute_instance" "vm" {
+  name         = "${var.instance_name}-${local.id}"
+  machine_type = "e2-standard-4"
+  zone         = local.zone
+
+  # Constructing an FQDN from GCP convention for Zonal DNS and storing it as
+  # metadata so it is a property of the instance, making it easy to use later in
+  # Bolt
+  metadata = {
+    "VmDnsSetting" = "ZonalPreferred"
+    "internalDNS"  = "${var.instance_name}-${local.id}.${local.zone}.c.${var.project}.internal"
+  }
+
+  boot_disk {
+    initialize_params {
+      image = var.instance_image
+      size  = 50
+      type  = "pd-ssd"
+    }
+  }
+
+  # Configuration of instances requires external IP address but it doesn't
+  # matter what they are so dynamic sourcing them from global pool is ok
+  network_interface {
+    network    = local.network
+    subnetwork = local.subnetwork
+    access_config {}
+  }
+
+  # Using remote-execs on each instance deployment to ensure things are really
+  # really up before doing to the next step, helps with Bolt plans that'll
+  # immediately connect then fail
+  provisioner "remote-exec" {
+    connection {
+      host = self.network_interface.0.network_ip
+      type = "winrm"
+      user = var.user
+      password = var.winrm_pw
+      https = true
+      insecure = true
+      use_ntlm = true
+    }
+    inline = ["REM Connected"]
+  }
+}
+
+output "ipaddress" {
+  value       = google_compute_instance.vm.network_interface.0.network_ip
+  description = "This will be the IP address assigned to the virtual machine"
+}

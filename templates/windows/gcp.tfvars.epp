@@ -1,0 +1,15 @@
+project        = "<%= $project %>"
+user           = "<%= $user %>"
+<% unless $winrm_pw == undef { -%>
+winrm_pw       = "<%= $winrm_pw %>"
+<% } -%>
+region         = "<%= $cloud_region %>"
+<% unless $vm_image == undef { -%>
+instance_image = "<%= $vm_image %>"
+<% } -%>
+<% unless $vm_name == undef { -%>
+instance_name = "<%= $vm_name %>"
+<% } -%>
+<% unless $network == undef { -%>
+network       = "<%= $network %>"
+<% } -%>
