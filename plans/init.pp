@@ -7,8 +7,16 @@
 #
 # @see https://github.com/ody/ody-deploy_vm
 #
-# @example Greate a new virtual machine within a GCP project
+# @example Create a new virtual machine within a GCP project
 #   puppet plan run deploy_vm targets=pe-primary.example.com ssh_user=provisioner network=default provider=gcp vm_name=example
+#
+# @param ssh_key_file
+#   Path to an SSH private key which will be used when validating a virtual
+#   machine running Linux is ready to accept remote connections
+#
+# @param winrm_pw
+#   Password which will be used when validating a virtual machine running
+#   Windows is ready to accept remote connections
 #
 # @param vm_image
 #   Name of the image that the virtual machine will be cloned from
@@ -18,24 +26,24 @@
 #   generated random identifier
 #
 # @param network
-#   Network that that virtual machine will be attached to
+#   Network that the virtual machine will be attached to
 #
 # @param cloud_region
 #   Cloud region when deploying to any public cloud provider
 #
-# @param project
+# @param gcp_project
 #   An authenticated project where virutal machine will be provisioned when
 #   deploying to Google Cloud Platform
 #
-# @param user
+# @param remote_user
 #   Remote user for validating newly provisioned host accepts connections,
-#   enabling the next step of any process to proceed
-#
-# @param ssh_key_file
-#   Path to an SSH private key which will be used when validating a virtual
-#   machine running linux is ready to accept connections
+#   enabling the next step of any process to proceed succesfully
 #
 # @param provider
+#   Which "cloud" provider to provision a new virtual machine to, Google Cloud
+#   Platform, VMWare vCenter, etc, etc.
+#
+# @param os_type
 #   Which cloud provider to provision a new virtual machine to, Google Cloud
 #   Platform, VMWare vCenter, etc, etc.
 #
@@ -47,7 +55,7 @@ plan deploy_vm(
   Optional[String[1]]      $vm_name      = undef,
   Optional[String[1]]      $network      = undef,
   String[1]                $cloud_region = 'us-west1',
-  String[1]                $project,
+  String[1]                $gcp_project,
   String[1]                $remote_user,
   Enum['gcp', 'vmware']    $provider,
   Enum['linux', 'windows'] $os_type
@@ -57,7 +65,7 @@ plan deploy_vm(
   # variable that can be used later
   $tfvars = $provider ? {
     'gcp'     => epp("deploy_vm/${os_type}/gcp.tfvars.epp", {
-                   'project'       => $project,
+                   'project'       => $gcp_project,
                    'user'          => $remote_user,
                    'ssh_key_file'  => $ssh_key_file,
                    'winrm_pw'      => $winrm_pw,
@@ -79,15 +87,15 @@ plan deploy_vm(
   }
 
   # Store contents of Terraform manifest in a variable to keep consistent with
-  # tfvars file generation
+  # tfvars file generation and facilitate additional flexibility if required
   $tffile = epp("deploy_vm/${os_type}/${provider}.tf.epp")
 
   # Simple function that generates a unique path name at /tmp that can be
   # created on a target to stage Terraform content within
-  $tf_dir = deploy_vm::tempfile('deploy_vm-', '/tmp')
+  $tf_dir = deploy_vm::temppath('deploy_vm-', '/tmp')
 
-  # Leveraging a Puppet Apply block to ensure everything is appropriately and
-  # in place for running Terraform
+  # Leveraging a Puppet Apply block to ensure everything is appropriately in
+  # place for running Terraform
   apply($targets) {
     # Setup a temporary directory un target host to executing Terraform in
     file { $tf_dir:
